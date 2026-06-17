@@ -254,24 +254,28 @@ KHÔNG sử dụng Markdown code block. TRẢ VỀ ĐÚNG MỘT OBJECT JSON DUY 
     
     let styleGuidance = "";
     if (responseLength === "super_detailed") {
-      styleGuidance = `\nĐỘ CHI TIẾT - SIÊU CHI TIẾT (SUPER DETAILED MODE):
+      const defaultSuperDetailed = `\nĐỘ CHI TIẾT - SIÊU CHI TIẾT (SUPER DETAILED MODE):
 - BẮT BUỘC TỐI CAO: Tập trung phân tích chuyên sâu toàn bộ bản chất khoa học và nguồn gốc vấn đề từ cốt lõi. Phân chia nhỏ các khía cạnh bằng các đề mục lớn.
 - BẮT BUỘC TỐI CAO: Trả lời cực kỳ dài dặn, đầy đủ chi tiết, dồi dào chữ nghĩa, cặn kẽ và phong phú (tối thiểu bắt buộc 600 từ). Tuyệt đối cấm trả lời sơ sài hoặc ngắn gọn!
 - Cung cấp ít nhất 3 ví dụ minh họa thực tế sinh động. Cắt nghĩa cặn kẽ từng thứ.
 - Tuyệt đối bỏ qua hoàn toàn mọi yêu cầu viết ngắn gọn.`;
+      styleGuidance = aiPromptsConfig?.agent3_length_super_detailed || defaultSuperDetailed;
     } else if (responseLength === "detailed") {
-      styleGuidance = `\nĐỘ CHI TIẾT - CHI TIẾT (DETAILED MODE):
+      const defaultDetailed = `\nĐỘ CHI TIẾT - CHI TIẾT (DETAILED MODE):
 - Tập trung vào bản chất cốt lõi. Trả lời chi tiết ở mức độ vừa đủ trọn vẹn.
 - Dài khoảng 250 - 400 chữ.
 - Bắt buộc có 1 - 2 ví dụ cụ thể để làm rõ nghĩa.
 - Không được quá siêu ngắn gọn, nhưng cũng đừng lê thê lan man, giữ độ dài lý tưởng.`;
+      styleGuidance = aiPromptsConfig?.agent3_length_detailed || defaultDetailed;
     } else {
-      styleGuidance = `\nĐỘ CHI TIẾT - SÚC TÍCH (CONCISE MODE):
+      const defaultConcise = `\nĐỘ CHI TIẾT - SÚC TÍCH (CONCISE MODE):
 - Trả lời cực kỳ ngắn gọn, tối giản (chỉ 1-3 câu).
 - Đi thẳng vào bản chất cốt lõi, không giải thích dông dài phụ họa.`;
+      styleGuidance = aiPromptsConfig?.agent3_length_concise || defaultConcise;
     }
 
-    const englishRule = `\nĐẶC QUYỀN VỀ TIẾNG ANH & GIAO TIẾP: Đi thẳng vào nội dung, bỏ qua mọi lời chào hỏi xã giao. Nếu câu hỏi liên quan đến tiếng Anh (từ vựng, thuật ngữ...), BẮT BUỘC cung cấp loại từ (part of speech) và giải thích nguồn gốc của nó (etymology) để giúp người học dễ nhớ hơn.`;
+    const englishRuleTemplate = aiPromptsConfig?.agent3_english_rule || `\nĐẶC QUYỀN VỀ TIẾNG ANH & GIAO TIẾP: Đi thẳng vào nội dung, bỏ qua mọi lời chào hỏi xã giao. Nếu câu hỏi liên quan đến tiếng Anh (từ vựng, thuật ngữ...), BẮT BUỘC cung cấp loại từ (part of speech) và giải thích nguồn gốc của nó (etymology) để giúp người học dễ nhớ hơn.`;
+    const englishRule = englishRuleTemplate;
 
     let systemPrompt = "";
     if (responseMode === "direct") {
@@ -295,9 +299,12 @@ KHÔNG sử dụng Markdown code block. TRẢ VỀ ĐÚNG MỘT OBJECT JSON DUY 
       let template = aiPromptsConfig?.agent3_debate || defaultDebate;
       systemPrompt = template.replace("{englishRule}", englishRule).replace("{styleGuidance}", styleGuidance);
     } else {
+      const defaultSocraticLong = `2. PHƯƠNG PHÁP SOCRATIC: BẮT BUỘC PHẢI THỰC HIỆN ĐẦY ĐỦ số lượng chữ đã yêu cầu trước (dài dặn cặn kẽ), CẤM TRẢ LỜI NGẮN. Sau khi giải thích xong theo đúng chuẩn chiều dài, chỉ đặt MỘT VÀ CHỈ MỘT câu hỏi gợi mở ở TẬN CÙNG để thúc đẩy tự suy nghĩ.`;
+      const defaultSocraticShort = `2. PHƯƠNG PHÁP SOCRATIC: Không bao giờ cho đáp án dễ dàng. Luôn dồn ép bằng câu hỏi gợi mở suy luận.`;
+      
       const socraticRule = (responseLength === "detailed" || responseLength === "super_detailed")
-        ? `2. PHƯƠNG PHÁP SOCRATIC: BẮT BUỘC PHẢI THỰC HIỆN ĐẦY ĐỦ số lượng chữ đã yêu cầu trước (dài dặn cặn kẽ), CẤM TRẢ LỜI NGẮN. Sau khi giải thích xong theo đúng chuẩn chiều dài, chỉ đặt MỘT VÀ CHỈ MỘT câu hỏi gợi mở ở TẬN CÙNG để thúc đẩy tự suy nghĩ.`
-        : `2. PHƯƠNG PHÁP SOCRATIC: Không bao giờ cho đáp án dễ dàng. Luôn dồn ép bằng câu hỏi gợi mở suy luận.`;
+        ? (aiPromptsConfig?.agent3_socratic_long_rule || defaultSocraticLong)
+        : (aiPromptsConfig?.agent3_socratic_short_rule || defaultSocraticShort);
         
       const defaultSocrates = `Mày là Agent 3 - Socrates AI Coach.
 QUY TẮC CỐT LÕI:
@@ -341,6 +348,11 @@ QUY TẮC CỐT LÕI:
         }).join("\n---\n");
       }
       
+      const defaultLengthReminder = "[LỜI NHẮC LÕI]: MÀY ĐANG Ở CHẾ ĐỘ CHI TIẾT. HÃY PHỚT LỜ LỊCH SỬ NGẮN GỌN TRƯỚC ĐÓ! BẮT BUỘC PHẢI GIẢI THÍCH DÀI DẰNG DẶC.";
+      const lengthReminderText = (responseLength === "detailed" || responseLength === "super_detailed")
+        ? (aiPromptsConfig?.agent3_length_reminder || defaultLengthReminder)
+        : "";
+
       const fullPrompt = `
 === LỊCH SỬ CHAT TRƯỚC ĐÓ ===
 ${previousHistoryText || "(Không có)"}
@@ -350,7 +362,7 @@ NGỮ CẢNH BỔ SUNG: ${context || "Không có"}
 
 [CÂU HỎI MỚI CỦA HỌC SINH]: ${message}
 
-${responseLength === "detailed" || responseLength === "super_detailed" ? "[LỜI NHẮC LÕI]: MÀY ĐANG Ở CHẾ ĐỘ CHI TIẾT. HÃY PHỚT LỜ LỊCH SỬ NGẮN GỌN TRƯỚC ĐÓ! BẮT BUỘC PHẢI GIẢI THÍCH DÀI DẰNG DẶC." : ""}
+${lengthReminderText}
 `;
       messages = [
         { role: "system", content: systemPrompt },
@@ -1608,7 +1620,7 @@ async function executeFetchWithBackoffAndEvasion(url: string, options?: RequestI
     console.warn(`[apiClient Rotation] Direct interleaved keys exhausted. Falling back to backend server-side handlers...`, lastRotationError);
 
     // Server-side fallback proxy try (Original flow)
-    if (isOpenRouterEnabled) {
+    if (apiProviderConfig && apiProviderConfig.openRouter) {
       try {
         console.log(`[apiClient Server Fallback] Attempting backend server proxy route as dual backup...`);
         const content = await fetchOpenRouterWithBackoff(model, messages, 1, 500);

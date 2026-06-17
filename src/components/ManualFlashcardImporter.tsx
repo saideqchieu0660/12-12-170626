@@ -255,7 +255,7 @@ export default function ManualFlashcardImporter() {
 
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      alert("Bạn cần đăng nhập lại để thao tác băm phục hồi lỗi!");
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('toast-dispatch', { detail: "Bạn cần đăng nhập lại để thao tác băm phục hồi lỗi!" }));
       setProcessingErrorIndex(null);
       return;
     }
@@ -423,7 +423,7 @@ export default function ManualFlashcardImporter() {
       );
     } catch (err: any) {
       console.error(err);
-      alert(`Lỗi phục hồi phân đoạn: ${err.message || err}`);
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('toast-dispatch', { detail: `Lỗi phục hồi phân đoạn: ${err.message || err}` }));
     } finally {
       setProcessingErrorIndex(null);
     }
@@ -600,9 +600,9 @@ export default function ManualFlashcardImporter() {
     }
 
     setRetryAllLoading(false);
-    alert(
-      `Hoàn thành băm lại hàng loạt phân đoạn lỗi! Phục hồi thành công: ${successCountLocal}/${errorsToRetry.length} phân đoạn.`,
-    );
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('toast-dispatch', { detail: `Hoàn thành băm lại hàng loạt phân đoạn lỗi! Phục hồi thành công: ${successCountLocal}/${errorsToRetry.length} phân đoạn.` }));
+    }
   };
 
   const handleCleanAndDeduplicate = async (inputText: string) => {

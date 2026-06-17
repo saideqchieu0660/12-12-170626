@@ -48,7 +48,19 @@ export const AchievementCard = ({ points, streak, unlockedBadges, onClose }: Ach
       const html2canvas = (await import('html2canvas')).default;
       
       // Đợi font loading và render
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await document.fonts.ready;
+      
+      // Chờ thêm một chút để đảm bảo ảnh trong DOM đã được decode
+      const images = Array.from(targetRef.querySelectorAll('img'));
+      await Promise.all(images.map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(resolve => {
+          img.onload = resolve;
+          img.onerror = resolve; // Đảm bảo không bị treo nếu ảnh lỗi
+        });
+      }));
+
+      await new Promise(resolve => setTimeout(resolve, 800)); // Thêm thời gian chờ dự phòng (delay thêm một chút)
 
       // Temporarily bring the element to viewport but behind everything to ensure browser renders it properly
       const originalTop = targetRef.style.top;
@@ -114,9 +126,9 @@ export const AchievementCard = ({ points, streak, unlockedBadges, onClose }: Ach
     } catch (err) {
       console.error('Export failed:', err);
       if (err instanceof Error) {
-         alert(`Tải xuống thất bại. Chi tiết lỗi: ${err.message}`);
+         console.warn(`Tải xuống thất bại. Chi tiết lỗi: ${err.message}`);
       } else {
-         alert('Tải xuống thất bại. Lỗi kết xuất hình ảnh.');
+         console.warn('Tải xuống thất bại. Lỗi kết xuất hình ảnh.');
       }
     } finally {
       setIsExporting(false);

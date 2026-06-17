@@ -756,7 +756,9 @@ export default function Agent3Widget() {
                   if (existingSets.length > 0) {
                     setIsCreateNewSet(false);
                   } else {
-                    alert("Ngài chưa có bộ thẻ học cá nhân nào! Hãy dùng tùy chọn 'Tạo Bộ Mới Tinh' bên dưới nhé.");
+                    if (typeof window !== 'undefined') {
+                      window.dispatchEvent(new CustomEvent('toast-dispatch', { detail: "Ngài chưa có bộ thẻ học cá nhân nào! Hãy dùng tùy chọn 'Tạo Bộ Mới Tinh' bên dưới nhé." }));
+                    }
                   }
                 }}
                 className={cn(

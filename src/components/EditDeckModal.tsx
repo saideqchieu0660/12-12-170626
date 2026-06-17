@@ -57,7 +57,7 @@ export const EditDeckModal = ({
       onClose();
     } catch (e) {
       console.error(e);
-      alert("Lỗi khi lưu thông tin. Vui lòng thử lại.");
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('toast-dispatch', { detail: "Lỗi khi lưu thông tin. Vui lòng thử lại." }));
     } finally {
       setIsSaving(false);
     }

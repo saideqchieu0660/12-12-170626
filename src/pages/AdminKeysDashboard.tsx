@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import React, { useState, useEffect, useRef , useMemo } from "react";
 import { Key, AlertCircle, CheckCircle, Clock, RefreshCw, Loader2, ListOrdered, Server, Globe, Cpu, Activity, Zap } from "lucide-react";
 import * as d3 from 'd3';
@@ -6,6 +7,7 @@ import { apiManager } from "../lib/ApiQueueManager";
 import { NetworkHealthMonitor, NetworkHealthLog } from "../lib/NetworkHealthMonitor";
 import { apiProviderConfig, updateApiProviderConfig, keyRegistry } from "../utils/apiClient";
 import { AIPromptsEditorWidget } from "../components/AIPromptsEditorWidget";
+import { useSystemConfig } from "../hooks/useSystemConfig";
 
 class MonitorErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean}> {
   constructor(props: any) { super(props); this.state = { hasError: false }; }
@@ -120,6 +122,30 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
   const [queueStatus, setQueueStatus] = useState(apiManager.getStatus());
   const prevKeysRef = useRef<KeyState[]>([]);
 
+  const { config, updateConfig } = useSystemConfig();
+  const [editingEmail, setEditingEmail] = useState("");
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
+
+  useEffect(() => {
+    if (config?.supportEmail) {
+      setEditingEmail(config.supportEmail);
+    }
+  }, [config?.supportEmail]);
+
+  const handleSaveEmail = async () => {
+    setIsSavingEmail(true);
+    try {
+      await updateConfig({ supportEmail: editingEmail });
+      setIsEditingEmail(false);
+      toast("Đã cập nhật email hỗ trợ thành công!");
+    } catch (e: any) {
+      toast("Cập nhật thất bại: " + e.message);
+    } finally {
+      setIsSavingEmail(false);
+    }
+  };
+
   const [serverHealth, setServerHealth] = useState<any>(null);
   const [networkLogs, setNetworkLogs] = useState<NetworkHealthLog[]>([]);
   const [isTestingHealth, setIsTestingHealth] = useState(false);
@@ -232,7 +258,7 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
   const handleToggleChange = async (type: "openrouter" | "gemini" | "groq" | "deepinfra", newValue: boolean) => {
     const isSysAdmin = store.getCurrentUser()?.role === "admin" || store.getCurrentUser()?.role === "Admin";
     if (!isSysAdmin) {
-      alert("Ngài không phải Admin hệ thống, không có quyền bật tắt bộ ngắt mạch API toàn server đâu nhé!");
+      toast("Ngài không phải Admin hệ thống, không có quyền bật tắt bộ ngắt mạch API toàn server đâu nhé!");
       return;
     }
 
@@ -294,7 +320,7 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
         deepInfra: data.deepInfraEnabled !== false
       });
     } catch (err: any) {
-      alert("Lỗi cập nhật Switch: " + err.message);
+      toast("Lỗi cập nhật Switch: " + err.message);
       if (type === "openrouter") setOpenRouterEnabled(!newValue);
       if (type === "gemini") setGeminiEnabled(!newValue);
       if (type === "groq") setGroqEnabled(!newValue);
@@ -352,7 +378,7 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
       setTimeout(() => setResetSuccess(false), 2500);
     } catch (err: any) {
       console.error("Reset keys error:", err);
-      alert("Lỗi khi reset trạng thái key: " + err.message);
+      toast("Lỗi khi reset trạng thái key: " + err.message);
     } finally {
       setIsResettingKeys(false);
     }
@@ -870,6 +896,61 @@ export function ServiceMonitor({ adminKey }: { adminKey: string }) {
                     }`}
                   />
                 </button>
+              </div>
+            </div>
+          </div>
+
+          {/* SYSTEM SETTINGS CONFIGURATION */}
+          <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 p-6 rounded-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold uppercase tracking-wider text-blue-500 font-display flex items-center gap-2">
+                   System Settings
+                </h3>
+                <p className="text-xs text-zinc-500 mt-1 pb-1">
+                  Cấu hình các chỉ số hệ thống, email nhận báo cáo lỗi,...
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-bold text-zinc-700 dark:text-zinc-300">Support Email (Nhận báo cáo lỗi)</label>
+              <div className="flex gap-2 w-full max-w-md">
+                <input
+                  type="email"
+                  value={isEditingEmail ? editingEmail : config?.supportEmail || ""}
+                  disabled={!isEditingEmail}
+                  onChange={(e) => setEditingEmail(e.target.value)}
+                  className="flex-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="admin@example.com"
+                />
+                {isEditingEmail ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSaveEmail}
+                      disabled={isSavingEmail}
+                      className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center transition-all"
+                    >
+                      {isSavingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : "Lưu"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsEditingEmail(false);
+                        setEditingEmail(config?.supportEmail || "");
+                      }}
+                      className="bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-zinc-800 dark:text-zinc-200 px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                    >
+                      Huỷ
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsEditingEmail(true)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                  >
+                    Sửa
+                  </button>
+                )}
               </div>
             </div>
           </div>

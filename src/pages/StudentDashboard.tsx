@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { store, Deck, saveLocalUserDecks } from "../lib/store";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { Plus, X, Play, TrendingUp, Users, Target, BookOpen, BrainCircuit, Activity, Flame, ArrowLeft, CheckCircle2, XCircle, ArrowRight, Loader2, Trophy, Sparkles, Maximize2, Minimize2, Bell, BellOff, BellRing, Settings, AlertTriangle, Trash2, Snowflake, Volume2, VolumeX, Clock, Network, Award, Bot, User, Crown, ChevronUp, ChevronDown, Minus, Shield, RefreshCw, Heart, LogOut, Bug, Type, Library, Camera, Edit3, HelpCircle, Cpu, ShoppingBag, Lock, Zap, Ghost, ShieldAlert, Eye, BarChart3, Download } from "lucide-react";
+import { Plus, X, Play, TrendingUp, Users, Target, BookOpen, BrainCircuit, Activity, Flame, ArrowLeft, CheckCircle2, XCircle, ArrowRight, Loader2, Trophy, Sparkles, Maximize2, Minimize2, Bell, BellOff, BellRing, Settings, AlertTriangle, Trash2, Snowflake, Volume2, VolumeX, Clock, Network, Award, Bot, User, Crown, ChevronUp, ChevronDown, Minus, Shield, RefreshCw, Heart, LogOut, Bug, Type, Library, Camera, Edit3, HelpCircle, Cpu, ShoppingBag, Lock, Zap, Ghost, ShieldAlert, Eye, BarChart3, Download, WifiOff } from "lucide-react";
 import { MarcusAureliusIcon } from "../components/MarcusAureliusIcon";
 import { cn } from "../lib/utils";
 import { safeRequest } from "../utils/apiClient";
@@ -491,11 +491,11 @@ export default function StudentDashboard() {
 
   const handleSaveManualDeck = async () => {
     if (!manualTitle.trim()) {
-      alert("Vui lòng nhập tiêu đề bộ thẻ!");
+      toast("Vui lòng nhập tiêu đề bộ thẻ!");
       return;
     }
     if (manualCards.length === 0) {
-      alert("Bộ thẻ cần có ít nhất 1 thẻ!");
+      toast("Bộ thẻ cần có ít nhất 1 thẻ!");
       return;
     }
     const deckId = `deck_user_${Date.now()}`;
@@ -520,15 +520,17 @@ export default function StudentDashboard() {
     setManualSubject("");
     setIsCreatingNewSubject(false);
     setManualCards([]);
-    alert(`Chúc mừng! Bộ thẻ "${newDeck.title}" đã được tạo thành công! Bạn có thể xem ngay tại tab "Bộ Học".`);
+    toast(`Chúc mừng! Bộ thẻ "${newDeck.title}" đã được tạo thành công! Bạn có thể xem ngay tại tab "Bộ Học".`);
     setActiveTab("all_sets");
   };
 
   const navigate = useNavigate();
   const [isStartingQuest, setIsStartingQuest] = useState(false);
+  const [offlineRoadmapError, setOfflineRoadmapError] = useState(false);
 
   const handleStartDailyQuest = useCallback(async () => {
     setIsStartingQuest(true);
+    setOfflineRoadmapError(false);
     try {
       const allDecks = store.getDecks();
       let allCards: any[] = [];
@@ -539,23 +541,44 @@ export default function StudentDashboard() {
       });
 
       if (allCards.length === 0) {
-        alert("Không có thẻ nào để tạo nhiệm vụ!");
+        toast("Không có thẻ nào để tạo nhiệm vụ!");
         setIsStartingQuest(false);
         return;
       }
 
-      const res = await safeRequest("/api/daily-quest", {
-         headers: { "Content-Type": "application/json" },
-         method: "POST",
-         body: JSON.stringify({ allCards })
-      });
-
-      const data = await res.json();
-
-      if (!data.cards || data.cards.length === 0) {
-        alert("Chưa có thẻ nào cần ôn hôm nay!");
-        setIsStartingQuest(false);
-        return;
+      let finalCards = [];
+      
+      // 🌍 OFFLINE-FIRST: intercept network call if offline
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+         console.warn("[PWA] Network offline. Attempting to hydrate roadmap from IndexedDB...");
+         const localforage = (await import("localforage")).default;
+         const cachedRoadmap = await localforage.getItem("cached_roadmap");
+         if (cachedRoadmap && Array.isArray(cachedRoadmap)) {
+            finalCards = cachedRoadmap;
+         } else {
+            setOfflineRoadmapError(true);
+            setIsStartingQuest(false);
+            return;
+         }
+      } else {
+         const res = await safeRequest("/api/daily-quest", {
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+            body: JSON.stringify({ allCards })
+         });
+   
+         const data = await res.json();
+   
+         if (!data.cards || data.cards.length === 0) {
+           toast("Chưa có thẻ nào cần ôn hôm nay!");
+           setIsStartingQuest(false);
+           return;
+         }
+         finalCards = data.cards;
+         
+         // WRITE-THROUGH CACHE: save successful roadmap for offline sessions
+         const localforage = (await import("localforage")).default;
+         await localforage.setItem("cached_roadmap", finalCards).catch(console.warn);
       }
 
       const dailyDeck = {
@@ -563,7 +586,7 @@ export default function StudentDashboard() {
          title: "Nhiệm vụ hôm nay (Daily Quest)",
          subject: "Spaced Repetition",
          description: "Được tự động tạo bởi SM-2 bằng Thuật toán phân cực.",
-         cards: data.cards,
+         cards: finalCards,
          createdAt: new Date().toISOString(),
          ownerId: "system"
       };
@@ -572,7 +595,29 @@ export default function StudentDashboard() {
       navigate("/study/daily-quest");
     } catch(err) {
        console.error("Daily quest start error:", err);
-       alert("Có lỗi khi tạo lộ trình hôm nay. Vui lòng thử lại.");
+       
+       // Fallback on Catch: If network failed unexpectedly during fetch
+       try {
+         const localforage = (await import("localforage")).default;
+         const cachedRoadmap = await localforage.getItem("cached_roadmap");
+         if (cachedRoadmap && Array.isArray(cachedRoadmap)) {
+             toast("Mạng không ổn định. Đã kích hoạt dự phòng lộ trình tuyến Offline PWA.");
+             const dailyDeck = {
+                id: "daily-quest",
+                title: "Nhiệm vụ hôm nay (Daily Quest)",
+                subject: "Spaced Repetition",
+                description: "Được tự động tạo bởi SM-2 bằng Thuật toán phân cực.",
+                cards: cachedRoadmap,
+                createdAt: new Date().toISOString(),
+                ownerId: "system"
+             };
+             store.setTempDeck(dailyDeck);
+             navigate("/study/daily-quest");
+             return;
+         }
+       } catch (fallbackErr) {}
+       
+       setOfflineRoadmapError(true);
        setIsStartingQuest(false);
     }
   }, [navigate]);
@@ -1150,12 +1195,12 @@ export default function StudentDashboard() {
     const newVal = !notificationsEnabled;
     if (newVal) {
       if (!("Notification" in window)) {
-        alert("Trình duyệt của ngài không hỗ trợ Browser Notifications API rồi!");
+        toast("Trình duyệt của ngài không hỗ trợ Browser Notifications API rồi!");
         return;
       }
       const perm = await Notification.requestPermission();
       if (perm !== "granted") {
-        alert("Ngài cần bật quyền thông báo đẩy trên trình duyệt thì hệ thống mới gửi nhắc nhở được!");
+        toast("Ngài cần bật quyền thông báo đẩy trên trình duyệt thì hệ thống mới gửi nhắc nhở được!");
         return;
       }
     }
@@ -1219,7 +1264,7 @@ export default function StudentDashboard() {
     }
     keysToRemove.forEach(k => localStorage.removeItem(k));
     setShowCacheClearConfirm(false);
-    alert("Đã dọn dẹp bộ nhớ cache thành công! 🎉");
+    toast("Đã dọn dẹp bộ nhớ cache thành công! 🎉");
     window.location.reload();
   };
 
@@ -1494,7 +1539,7 @@ export default function StudentDashboard() {
       setQuizScore(prev => prev + 1);
     } else if (isAchillesQuizMode) {
       // Penalty: trừ streak hoặc trừ level
-      alert("Bạn đã chọn sai! Lời nguyền Achilles giáng xuống... Streak của bạn đã bị phá vỡ hoàn toàn.");
+      toast("Bạn đã chọn sai! Lời nguyền Achilles giáng xuống... Streak của bạn đã bị phá vỡ hoàn toàn.");
       store.breakAchillesStreak();
       if (user && (user.level || 1) > 1) {
           // just let it break streak for now
@@ -1529,7 +1574,7 @@ export default function StudentDashboard() {
               const totalCorrect = quizScore + (selectedOption === getCorrectIndex(currentQ) ? 1 : 0);
               if (totalCorrect === quizQuestions.length) {
                  store.activateAchillesBuff();
-                 alert("🎉 THÀNH CÔNG! Nghi thức Achilles hoàn tất. Bạn được x4 XP trong vòng 24 giờ và nhận 1 phần thưởng!");
+                 toast("🎉 THÀNH CÔNG! Nghi thức Achilles hoàn tất. Bạn được x4 XP trong vòng 24 giờ và nhận 1 phần thưởng!");
                  setForceRender(prev => prev + 1);
               }
           }
@@ -2143,6 +2188,14 @@ export default function StudentDashboard() {
                      <p className="font-sans font-light tracking-wide opacity-90 max-w-md">
                         Lộ trình thông minh tự động trộn 20% thẻ mới và 80% thẻ ôn tập được gợi ý bằng thuật toán Spaced Repetition.
                      </p>
+                     
+                     {/* Offline Fallback Area */}
+                     {offlineRoadmapError && (
+                        <div className="mt-3 inline-flex items-center gap-2 bg-rose-500/20 text-rose-100 border border-rose-500/40 px-3 py-2 rounded-lg text-sm font-medium">
+                           <WifiOff className="w-4 h-4 shrink-0" />
+                           <span>Bạn đang ngoại tuyến. Vui lòng kết nối mạng để cập nhật lộ trình mới nhất!</span>
+                        </div>
+                     )}
                   </div>
                   <button 
                      disabled={isStartingQuest}
@@ -3135,16 +3188,16 @@ export default function StudentDashboard() {
                 <button
                   onClick={() => {
                     if (user?.streakFreeze) {
-                      alert("Ngài đã sở hữu Tấm Khiên Aegis hộ thể rồi!");
+                      toast("Ngài đã sở hữu Tấm Khiên Aegis hộ thể rồi!");
                       return;
                     }
                     if (user && user.points < currentFreezeCost) {
-                      alert("Không đủ Tinh Hoa! Hãy chăm chỉ ôn luyện để lĩnh hội thêm.");
+                      toast("Không đủ Tinh Hoa! Hãy chăm chỉ ôn luyện để lĩnh hội thêm.");
                       return;
                     }
                     if (!confirm(`Xác nhận đánh đổi ${currentFreezeCost} Tinh Hoa lấy Tấm Khiên Aegis (Bảo Vệ Streak)?`)) return;
                     if (store.buyStreakFreeze(currentFreezeCost)) {
-                      alert("Thành công! Tấm Khiên Aegis đã được kích hoạt, bảo vệ chuỗi ngày học của ngài!");
+                      toast("Thành công! Tấm Khiên Aegis đã được kích hoạt, bảo vệ chuỗi ngày học của ngài!");
                       setForceRender(prev => prev + 1);
                     }
                   }}
@@ -3183,12 +3236,12 @@ export default function StudentDashboard() {
                 <button
                   onClick={() => {
                     if (user && user.points < 150) {
-                      alert("Ngài chưa đủ Tinh Hoa! Hãy tiếp tục trau dồi để đổi lấy vật phẩm thiêng liêng.");
+                      toast("Ngài chưa đủ Tinh Hoa! Hãy tiếp tục trau dồi để đổi lấy vật phẩm thiêng liêng.");
                       return;
                     }
                     if (!confirm(`Xác nhận đánh đổi 150 Tinh Hoa lấy Mật Hoa Ambrosia (+50 XP)?`)) return;
                     if (store.buyXPPotion(150, 50)) {
-                      alert("Đã dùng mật hoa! Trí tuệ bừng sáng, ngài nhận ngay +50 XP.");
+                      toast("Đã dùng mật hoa! Trí tuệ bừng sáng, ngài nhận ngay +50 XP.");
                       setForceRender(prev => prev + 1);
                     }
                   }}
@@ -3214,11 +3267,11 @@ export default function StudentDashboard() {
                 actionText: "Thu nạp nhãn lực",
                 onBuy: () => {
                   if (user && user.points < 80) {
-                    alert("Chưa đủ điểm Tinh Hoa để sở hữu vật phẩm thần thoại này!");
+                    toast("Chưa đủ điểm Tinh Hoa để sở hữu vật phẩm thần thoại này!");
                     return;
                   }
                   if (store.buyArgusEyes(80)) {
-                    alert("Cặp mắt Argus đã bừng sáng! Bạn được Agent 3 giảng giải tận gốc rễ trong 24 giờ tới.");
+                    toast("Cặp mắt Argus đã bừng sáng! Bạn được Agent 3 giảng giải tận gốc rễ trong 24 giờ tới.");
                   }
                 }
               })}
@@ -3259,7 +3312,7 @@ export default function StudentDashboard() {
                 actionText: "Bắt đầu thử thách",
                 onBuy: () => {
                   if (user && user.points < 100) {
-                    alert("Không đủ điểm Tinh Hoa để thực hiện nghi thức này!");
+                    toast("Không đủ điểm Tinh Hoa để thực hiện nghi thức này!");
                     return;
                   }
                   setShowAchillesSetup(true);
@@ -3317,12 +3370,12 @@ export default function StudentDashboard() {
                 <button
                   onClick={() => {
                     if (user && user.points < 200) {
-                      alert("Cần 200 Tinh Hoa để chứng minh năng lực. Hãy tiếp tục học nhé!");
+                      toast("Cần 200 Tinh Hoa để chứng minh năng lực. Hãy tiếp tục học nhé!");
                       return;
                     }
                     if (!confirm(`Xác nhận đánh đổi 200 Tinh Hoa để lập tức thăng 1 cấp độ?`)) return;
                     if (store.buyLevelUp(200)) {
-                      alert("Phép thuật khai sáng! Trí tuệ thăng hoa, ngài đã được nâng lên cấp độ mới! (Level +1)");
+                      toast("Phép thuật khai sáng! Trí tuệ thăng hoa, ngài đã được nâng lên cấp độ mới! (Level +1)");
                       setForceRender(prev => prev + 1);
                     }
                   }}
@@ -3361,11 +3414,11 @@ export default function StudentDashboard() {
                 <button
                   onClick={async () => {
                     if (user?.avatarBorder === "diamond" || user?.unlockedCustomBorders?.includes("diamond")) {
-                      alert("Hào quang Kim Cương đã nằm trong bộ sưu tập Khung Cấp Độ của ngài rồi!");
+                      toast("Hào quang Kim Cương đã nằm trong bộ sưu tập Khung Cấp Độ của ngài rồi!");
                       return;
                     }
                     if (user && user.points < 500) {
-                      alert("Ngài chưa đủ Tinh Hoa để sở hữu vật phẩm thần thánh này!");
+                      toast("Ngài chưa đủ Tinh Hoa để sở hữu vật phẩm thần thánh này!");
                       return;
                     }
                     if (!confirm(`Xác nhận đánh đổi 500 Tinh Hoa để sở hữu Hào Quang Olympus (Khung Kim Cương)?`)) return;
@@ -3384,11 +3437,11 @@ export default function StudentDashboard() {
                         unlockedCustomBorders: newBorders
                       }, true);
                       
-                      alert("Thu nhận thành công! Hào quang rực rỡ đang bao phủ lấy ngài!");
+                      toast("Thu nhận thành công! Hào quang rực rỡ đang bao phủ lấy ngài!");
                       setForceRender(prev => prev + 1);
                     } catch (e) {
                       console.error(e);
-                      alert("Lỗi khi giao tiếp với đền thờ Olympus.");
+                      toast("Lỗi khi giao tiếp với đền thờ Olympus.");
                     }
                   }}
                   disabled={user ? user.points < 500 : true}
@@ -3426,11 +3479,11 @@ export default function StudentDashboard() {
                 <button
                   onClick={async () => {
                     if (user?.title === "Học Giả Bách Khoa" || user?.unlockedCustomTitles?.includes("Học Giả Bách Khoa")) {
-                      alert("Tôn danh này ngài đã sở hữu rồi, hãy vào danh sách Danh Hiệu để thay đổi!");
+                      toast("Tôn danh này ngài đã sở hữu rồi, hãy vào danh sách Danh Hiệu để thay đổi!");
                       return;
                     }
                     if (user && user.points < 300) {
-                      alert("Chưa đủ 300 Tinh Hoa. Ngài cần rèn luyện thêm để chứng tỏ học thức.");
+                      toast("Chưa đủ 300 Tinh Hoa. Ngài cần rèn luyện thêm để chứng tỏ học thức.");
                       return;
                     }
                     if (!confirm(`Xác nhận đánh đổi 300 Tinh Hoa để sở hữu Phong Hiệu 'Học Giả Bách Khoa'?`)) return;
@@ -3449,7 +3502,7 @@ export default function StudentDashboard() {
                         unlockedCustomTitles: newTitles
                       }, true);
                       
-                      alert("Tuyệt hảo! Ngài đã chính thức được phong tước hiệu 'Học Giả Bách Khoa' lừng lẫy!");
+                      toast("Tuyệt hảo! Ngài đã chính thức được phong tước hiệu 'Học Giả Bách Khoa' lừng lẫy!");
                       setForceRender(prev => prev + 1);
                     } catch (e) {
                       console.error(e);
@@ -3490,11 +3543,11 @@ export default function StudentDashboard() {
                 <button
                   onClick={async () => {
                     if (user?.isSchoolLover) {
-                      alert("Tâm trí của ngài đã mang sẵn ngọn lửa nhiệt huyết rồi!");
+                      toast("Tâm trí của ngài đã mang sẵn ngọn lửa nhiệt huyết rồi!");
                       return;
                     }
                     if (user && user.points < 50) {
-                      alert("Ngài chưa đủ Tinh Hoa (Aether)!");
+                      toast("Ngài chưa đủ Tinh Hoa (Aether)!");
                       return;
                     }
                     if (!confirm("Xác nhận đánh đổi 50 Tinh Hoa để sở hữu biểu tượng Trái Tim Sư Tử?")) return;
@@ -3511,7 +3564,7 @@ export default function StudentDashboard() {
                       }, true);
                       setDbUsers(prev => prev.map(item => item.id === user!.id ? { ...item, isSchoolLover: true } : item));
                       
-                      alert("Đánh thức thành công! Khí chất của ngài luôn rực cháy tinh thần Khắc Kỷ kiên định!");
+                      toast("Đánh thức thành công! Khí chất của ngài luôn rực cháy tinh thần Khắc Kỷ kiên định!");
                       setForceRender(prev => prev + 1);
                     } catch (e) {
                       console.error(e);
@@ -3552,7 +3605,7 @@ export default function StudentDashboard() {
                 <button
                   onClick={() => {
                     if (user && user.points < 50) {
-                      alert("Không đủ 50 Tinh Hoa để mở chiếc hộp bí ẩn này!");
+                      toast("Không đủ 50 Tinh Hoa để mở chiếc hộp bí ẩn này!");
                       return;
                     }
                     if (!confirm("Xác nhận đánh đổi 50 Tinh Hoa để mở hộp Pandora bí ẩn?")) return;
@@ -3562,15 +3615,15 @@ export default function StudentDashboard() {
                     if (rand < 0.1) {
                        store.updateCurrentUser({ level: (user.level || 1) + 1 });
                        store.buyXPPotion(0, 100);
-                       alert("JACKPOT! Bạn mở ra sức mạnh thần thánh: Tăng 1 Cấp Độ và nhận 100 XP!");
+                       toast("JACKPOT! Bạn mở ra sức mạnh thần thánh: Tăng 1 Cấp Độ và nhận 100 XP!");
                     } else if (rand < 0.4) {
                        store.updateCurrentUser({ points: store.getCurrentUser()!.points + 120 }); 
-                       alert("Quả ngọt! Chiếc hộp trả lại bạn 120 Tinh Hoa (Lãi 70).");
+                       toast("Quả ngọt! Chiếc hộp trả lại bạn 120 Tinh Hoa (Lãi 70).");
                     } else if (rand < 0.7) {
                        store.buyXPPotion(0, 75);
-                       alert("Không tệ! Bạn nhận được tri thức thượng cổ quy đổi thành 75 XP.");
+                       toast("Không tệ! Bạn nhận được tri thức thượng cổ quy đổi thành 75 XP.");
                     } else {
-                       alert("Chiếc hộp trống rỗng! Trí tuệ của bạn bị bóng đêm hư không nuốt chửng...");
+                       toast("Chiếc hộp trống rỗng! Trí tuệ của bạn bị bóng đêm hư không nuốt chửng...");
                     }
                     setForceRender(prev => prev + 1);
                   }}
@@ -3610,12 +3663,12 @@ export default function StudentDashboard() {
                   onClick={() => {
                     const currentLevel = user?.level || 1;
                     if (currentLevel <= 1) {
-                       alert("Bạn chỉ đang ở Cấp 1, không thể hiến tế thêm được nữa!");
+                       toast("Bạn chỉ đang ở Cấp 1, không thể hiến tế thêm được nữa!");
                        return;
                     }
                     if (confirm(`Bạn có chắc muốn hiến tế 1 Cấp Độ (Từ Cấp ${currentLevel} xuống Cấp ${currentLevel - 1}) để lấy 1000 Tinh Hoa không?`)) {
                        store.updateCurrentUser({ level: currentLevel - 1, points: (user?.points || 0) + 1000 });
-                       alert("Hiến tế hoàn tất! Bạn vừa nhận 1000 Tinh Hoa.");
+                       toast("Hiến tế hoàn tất! Bạn vừa nhận 1000 Tinh Hoa.");
                        setForceRender(prev => prev + 1);
                     }
                   }}
@@ -3681,7 +3734,7 @@ export default function StudentDashboard() {
                     <button
                       onClick={async () => {
                         if (user && user.points < 350) {
-                          alert("Nguồn Tinh Hoa chưa đủ. Hãy tiếp tục trau dồi tri thức nhé!");
+                          toast("Nguồn Tinh Hoa chưa đủ. Hãy tiếp tục trau dồi tri thức nhé!");
                           return;
                         }
                         try {
@@ -3704,7 +3757,7 @@ export default function StudentDashboard() {
                             activeChallenge: newChallenge
                           }, true);
 
-                          alert("Đã nhận ngọn lửa rực cháy! Giữ streak 10 ngày để thăng cấp nhé!");
+                          toast("Đã nhận ngọn lửa rực cháy! Giữ streak 10 ngày để thăng cấp nhé!");
                           setForceRender(prev => prev + 1);
                         } catch (e) {
                           console.error(e);
@@ -3738,7 +3791,7 @@ export default function StudentDashboard() {
                           store.updateCurrentUser({ 
                             activeChallenge: newChallenge
                           }, true);
-                          alert(`Đã chọn đi tiếp! Hệ số bây giờ là x${newMultiplier}. Xin hãy giữ tinh thần thép!`);
+                          toast(`Đã chọn đi tiếp! Hệ số bây giờ là x${newMultiplier}. Xin hãy giữ tinh thần thép!`);
                           setForceRender(prev => prev + 1);
                         } catch(e) { console.error(e); }
                       }}
@@ -3760,7 +3813,7 @@ export default function StudentDashboard() {
                             level: newLevel,
                             activeChallenge: undefined
                           }, true);
-                          alert(`Thành công! Ngài đã nhận được ${rewardLv} Cấp Độ vinh quang!`);
+                          toast(`Thành công! Ngài đã nhận được ${rewardLv} Cấp Độ vinh quang!`);
                           setForceRender(prev => prev + 1);
                         } catch(e) { console.error(e); }
                       }}
@@ -3820,11 +3873,11 @@ export default function StudentDashboard() {
                 <button
                   onClick={async () => {
                     if (user?.title === "Quân Vương Triết Học" || user?.unlockedCustomTitles?.includes("Quân Vương Triết Học")) {
-                      alert("Vương miện tối cao này ngài đã sở hữu trong bộ sưu tập rồi!");
+                      toast("Vương miện tối cao này ngài đã sở hữu trong bộ sưu tập rồi!");
                       return;
                     }
                     if (user && user.points < 750) {
-                      alert("Tích trữ đủ 750 điểm Tinh Hoa để chinh phục tước hiệu này nhé!");
+                      toast("Tích trữ đủ 750 điểm Tinh Hoa để chinh phục tước hiệu này nhé!");
                       return;
                     }
                     if (!confirm("Ngài có chắc chắn muốn mua danh hiệu Quân Vương Triết Học không?")) return;
@@ -3843,7 +3896,7 @@ export default function StudentDashboard() {
                         unlockedCustomTitles: newTitles
                       }, true);
 
-                      alert("Đỉnh cao của sự khai sáng! Chào mừng ngài, Quân Vương Triết Học vĩ đại!");
+                      toast("Đỉnh cao của sự khai sáng! Chào mừng ngài, Quân Vương Triết Học vĩ đại!");
                       setForceRender(prev => prev + 1);
                     } catch (e) {
                       console.error(e);
@@ -3883,11 +3936,11 @@ export default function StudentDashboard() {
                     const titleName = "Người Cầm Trịch Chân Lý";
                     const price = 250;
                     if (user?.title === titleName || user?.unlockedCustomTitles?.includes(titleName)) {
-                      alert("Tôn danh này ngài đã sở hữu rồi, hãy vào danh sách Danh Hiệu để thay đổi!");
+                      toast("Tôn danh này ngài đã sở hữu rồi, hãy vào danh sách Danh Hiệu để thay đổi!");
                       return;
                     }
                     if (user && user.points < price) {
-                      alert(`Tích trữ đủ ${price} điểm Tinh Hoa để đổi thưởng nhé!`);
+                      toast(`Tích trữ đủ ${price} điểm Tinh Hoa để đổi thưởng nhé!`);
                       return;
                     }
                     if (!confirm(`Mua danh hiệu ${titleName} với giá ${price} Tinh Hoa?`)) return;
@@ -3897,7 +3950,7 @@ export default function StudentDashboard() {
                       const { dbService } = await import("../lib/firebase");
                       await dbService.updateUserProfile(user!.id, { points: newPoints, title: titleName, unlockedCustomTitles: newTitles });
                       store.updateCurrentUser({ points: newPoints, title: titleName, unlockedCustomTitles: newTitles }, true);
-                      alert(`Tuyệt vời! Ngài đã là ${titleName}!`);
+                      toast(`Tuyệt vời! Ngài đã là ${titleName}!`);
                       setForceRender(prev => prev + 1);
                     } catch (e) {
                       console.error(e);
@@ -3937,11 +3990,11 @@ export default function StudentDashboard() {
                     const titleName = "Hậu Duệ Của Aristotle";
                     const price = 350;
                     if (user?.title === titleName || user?.unlockedCustomTitles?.includes(titleName)) {
-                      alert("Tôn danh này ngài đã sở hữu rồi!");
+                      toast("Tôn danh này ngài đã sở hữu rồi!");
                       return;
                     }
                     if (user && user.points < price) {
-                      alert(`Cần ${price} điểm Tinh Hoa để đổi thưởng nhé!`);
+                      toast(`Cần ${price} điểm Tinh Hoa để đổi thưởng nhé!`);
                       return;
                     }
                     if (!confirm(`Mua danh hiệu ${titleName} với giá ${price} Tinh Hoa?`)) return;
@@ -3951,7 +4004,7 @@ export default function StudentDashboard() {
                       const { dbService } = await import("../lib/firebase");
                       await dbService.updateUserProfile(user!.id, { points: newPoints, title: titleName, unlockedCustomTitles: newTitles });
                       store.updateCurrentUser({ points: newPoints, title: titleName, unlockedCustomTitles: newTitles }, true);
-                      alert(`Đã trang bị danh hiệu: ${titleName}!`);
+                      toast(`Đã trang bị danh hiệu: ${titleName}!`);
                       setForceRender(prev => prev + 1);
                     } catch (e) {
                       console.error(e);
@@ -3991,11 +4044,11 @@ export default function StudentDashboard() {
                     const titleName = "Lãnh Chúa Thời Không";
                     const price = 500;
                     if (user?.title === titleName || user?.unlockedCustomTitles?.includes(titleName)) {
-                      alert("Tôn danh này ngài đã sở hữu rồi!");
+                      toast("Tôn danh này ngài đã sở hữu rồi!");
                       return;
                     }
                     if (user && user.points < price) {
-                      alert(`Cần ${price} điểm Tinh Hoa để đổi thưởng!`);
+                      toast(`Cần ${price} điểm Tinh Hoa để đổi thưởng!`);
                       return;
                     }
                     if (!confirm(`Mua danh hiệu ${titleName} với giá ${price} Tinh Hoa?`)) return;
@@ -4005,7 +4058,7 @@ export default function StudentDashboard() {
                       const { dbService } = await import("../lib/firebase");
                       await dbService.updateUserProfile(user!.id, { points: newPoints, title: titleName, unlockedCustomTitles: newTitles });
                       store.updateCurrentUser({ points: newPoints, title: titleName, unlockedCustomTitles: newTitles }, true);
-                      alert(`Ngài đã trở thành ${titleName}!`);
+                      toast(`Ngài đã trở thành ${titleName}!`);
                       setForceRender(prev => prev + 1);
                     } catch (e) {
                       console.error(e);
@@ -4046,11 +4099,11 @@ export default function StudentDashboard() {
                     const titleName = "Thần Thoại Kỷ Nguyên Mới";
                     const price = 1000;
                     if (user?.title === titleName || user?.unlockedCustomTitles?.includes(titleName)) {
-                      alert("Tôn danh này ngài đã sở hữu rồi!");
+                      toast("Tôn danh này ngài đã sở hữu rồi!");
                       return;
                     }
                     if (user && user.points < price) {
-                      alert(`Cần ${price} điểm Tinh Hoa để đổi thưởng!`);
+                      toast(`Cần ${price} điểm Tinh Hoa để đổi thưởng!`);
                       return;
                     }
                     if (!confirm(`Mua danh hiệu ${titleName} với giá ${price} Tinh Hoa?`)) return;
@@ -4060,7 +4113,7 @@ export default function StudentDashboard() {
                       const { dbService } = await import("../lib/firebase");
                       await dbService.updateUserProfile(user!.id, { points: newPoints, title: titleName, unlockedCustomTitles: newTitles });
                       store.updateCurrentUser({ points: newPoints, title: titleName, unlockedCustomTitles: newTitles }, true);
-                      alert(`Ngài là một huyền thoại sống: ${titleName}!`);
+                      toast(`Ngài là một huyền thoại sống: ${titleName}!`);
                       setForceRender(prev => prev + 1);
                     } catch (e) {
                       console.error(e);
@@ -4104,7 +4157,7 @@ export default function StudentDashboard() {
                 <button
                   onClick={async () => {
                     if (user && user.points < 100) {
-                      alert("Thiếu 100 Tinh Hoa rồi, luyện thêm bài đi nhé!");
+                      toast("Thiếu 100 Tinh Hoa rồi, luyện thêm bài đi nhé!");
                       return;
                     }
                     if (!confirm("Xác nhận chiết xuất 100 Tinh Hoa để sạc thêm năng lượng (1 Lượt) cho United Engine?")) return;
@@ -4121,7 +4174,7 @@ export default function StudentDashboard() {
                         unitedEngineUses: newUses
                       }, true);
 
-                      alert("Nạp thành công! 1 Lõi Năng Lượng United Engine đã được kích hoạt trong kho.");
+                      toast("Nạp thành công! 1 Lõi Năng Lượng United Engine đã được kích hoạt trong kho.");
                       setForceRender(prev => prev + 1);
                     } catch (e) {
                       console.error(e);
@@ -4169,16 +4222,16 @@ export default function StudentDashboard() {
                 <button
                   onClick={async () => {
                     if (user && user.points < 60) {
-                      alert("Thiếu 60 Tinh Hoa rồi!");
+                      toast("Thiếu 60 Tinh Hoa rồi!");
                       return;
                     }
                     if (user?.doubleXPUntil && user.doubleXPUntil > Date.now()) {
-                      alert("Bạn đang trong trạng thái x2 XP rồi!");
+                      toast("Bạn đang trong trạng thái x2 XP rồi!");
                       return;
                     }
                     if (!confirm("Xác nhận đổi 60 Tinh Hoa để nhận trạng thái x2 XP trong 15 phút?")) return;
                     if (store.buyDoubleXP(60)) {
-                      alert("Đã uống nước tăng lực! X2 XP trong 15 phút bắt đầu!");
+                      toast("Đã uống nước tăng lực! X2 XP trong 15 phút bắt đầu!");
                       setForceRender(prev => prev + 1);
                     }
                   }}
@@ -4224,16 +4277,16 @@ export default function StudentDashboard() {
                 <button
                   onClick={async () => {
                     if (user && user.points < 50) {
-                      alert("Thiếu 50 Tinh Hoa rồi!");
+                      toast("Thiếu 50 Tinh Hoa rồi!");
                       return;
                     }
                     if (user?.hideRankUntil && user.hideRankUntil > Date.now()) {
-                      alert("Bạn đã ẩn danh rồi!");
+                      toast("Bạn đã ẩn danh rồi!");
                       return;
                     }
                     if (!confirm("Xác nhận đổi 50 Tinh Hoa để tàng hình trên Leaderboard trong 24 giờ?")) return;
                     if (store.buyHideRank(50)) {
-                      alert("Che giấu hành tung thành công! Bạn đã biến mất khỏi bảng xếp hạng.");
+                      toast("Che giấu hành tung thành công! Bạn đã biến mất khỏi bảng xếp hạng.");
                       setForceRender(prev => prev + 1);
                     }
                   }}
@@ -4273,16 +4326,16 @@ export default function StudentDashboard() {
                   onClick={async () => {
                     const cost = 99999999999;
                     if (user && user.points < cost) {
-                      alert("Ngươi chưa đủ tư cách để chạm vào quyền trượng!");
+                      toast("Ngươi chưa đủ tư cách để chạm vào quyền trượng!");
                       return;
                     }
                     if (user?.role === "Admin" || user?.role === "admin") {
-                      alert("Ngài đã là đấng toàn năng rồi!");
+                      toast("Ngài đã là đấng toàn năng rồi!");
                       return;
                     }
                     if (!confirm("Một sự đánh đổi khủng khiếp. Xác nhận lấy Quyền Trượng Đấng Toàn Năng?")) return;
                     if (store.buyAdminRole(cost)) {
-                      alert("Trời đất rung chuyển! Chào mừng đấng sáng thế mới xuất hiện!");
+                      toast("Trời đất rung chuyển! Chào mừng đấng sáng thế mới xuất hiện!");
                       window.location.reload();
                     }
                   }}
@@ -4402,7 +4455,7 @@ export default function StudentDashboard() {
                             store.updateCurrentUser({ photoURL: base64 }, true);
                           } catch (err: any) {
                             console.error("Lỗi upload avatar:", err);
-                            alert("Không thể tải ảnh: " + err.message);
+                            toast("Không thể tải ảnh: " + err.message);
                           } finally {
                             setIsUploadingPhoto(false);
                           }
@@ -4433,7 +4486,7 @@ export default function StudentDashboard() {
                                       store.updateCurrentUser({ name: profileNameInput.trim() }, true);
                                       setIsEditingProfileName(false);
                                     } catch (err: any) {
-                                      alert("Lỗi đổi tên: " + err.message);
+                                      toast("Lỗi đổi tên: " + err.message);
                                     }
                                   }}
                                   className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
@@ -4769,7 +4822,7 @@ export default function StudentDashboard() {
                 description="Bạn có quyền kiểm soát tâm trí của mình - chứ không phải các sự kiện bên ngoài. Hãy nhận ra điều này, và bạn sẽ tìm thấy sức mạnh chân thật."
                 extraDetails="Marcus Aurelius khuyên rằng mọi sự đau khổ không xuất phát từ chính sự kiện, mà từ cách chúng ta phán xét nó. Khi bạn làm chủ được lăng kính nội tâm, không thế lực nào bên ngoài có thể làm bạn lung lay."
                 actionText="SYNC_METRICS"
-                onActionClick={() => alert("Hệ thống đồng bộ dữ liệu Stoicism thành công!")}
+                onActionClick={() => toast("Hệ thống đồng bộ dữ liệu Stoicism thành công!")}
               />
 
               <CyberCard 
@@ -4780,7 +4833,7 @@ export default function StudentDashboard() {
                 description="Không phải chúng ta có ít thời gian để sống, mà là chúng ta đã lãng phí quá nhiều thời gian vào những việc vô nghĩa."
                 extraDetails="Seneca nhấn mạnh thời gian là tài sản duy nhất mà chúng ta không bao giờ có thể lấy lại. Sống trọn vẹn từng khoảnh khắc hiện tại chính là cách tối thượng để chiến thắng sự hữu hạn của đời người."
                 actionText="TIME_DECRYPT"
-                onActionClick={() => alert("Thời gian định vị thành công: " + new Date().toLocaleTimeString())}
+                onActionClick={() => toast("Thời gian định vị thành công: " + new Date().toLocaleTimeString())}
               />
 
               <CyberCard 
@@ -4791,7 +4844,7 @@ export default function StudentDashboard() {
                 description="Hạnh phúc và tự do chỉ bắt đầu bằng một sự hiểu biết rõ ràng: Điều gì nằm trong tầm kiểm soát của ta, và điều gì thì không."
                 extraDetails="Epictetus phân chia thế giới thành hai nửa: những điều ta có quyền tác động (ý nghĩ, khát khao, thái độ) và những điều ta bất lực can thiệp (dư luận, số phận, thể trạng). Tập trung vào vế đầu đưa bạn tới tự do vĩnh cửu."
                 actionText="DECRYPT_VIR"
-                onActionClick={() => alert("Mở khóa mã nguồn đức hạnh Stoicism thành công!")}
+                onActionClick={() => toast("Mở khóa mã nguồn đức hạnh Stoicism thành công!")}
               />
             </CinematicContainer>
           </div>
@@ -4812,7 +4865,7 @@ export default function StudentDashboard() {
                 <button 
                   onClick={() => {
                     click();
-                    alert("Kích hoạt Chế độ Ambient Light Glow thành công!");
+                    toast("Kích hoạt Chế độ Ambient Light Glow thành công!");
                   }}
                   className="font-mono text-[10px] font-bold tracking-widest px-4 py-2 border border-orange-500/20 hover:border-orange-500 hover:text-orange-500 text-zinc-600 dark:text-zinc-400 transition-all rounded-lg"
                 >
@@ -5647,11 +5700,11 @@ export default function StudentDashboard() {
                 <button
                   onClick={() => {
                     if (achillesSelectedDecks.length !== 3) {
-                       alert("Bạn phải chọn đúng 3 bộ thẻ để bắt đầu thử thách Achilles!");
+                       toast("Bạn phải chọn đúng 3 bộ thẻ để bắt đầu thử thách Achilles!");
                        return;
                     }
                     if (user && user.points < 100) {
-                       alert("Không đủ 100 điểm để mở thử thách.");
+                       toast("Không đủ 100 điểm để mở thử thách.");
                        return;
                     }
                     

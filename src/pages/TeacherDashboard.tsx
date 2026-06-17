@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import React, { useState, useEffect, useRef , useMemo } from "react";
 import { store, Deck } from "../lib/store";
 import { FileText, Upload, AlertCircle, AlertTriangle, BarChart3, Users, CheckCircle2, TrendingUp, Target, FileUp, Activity, BookOpen, Shield, Trash2, FolderOpen, Inbox, Layers, Settings, Check, X, RefreshCw, Plus, Heart, LogOut, ChevronDown, ChevronUp, Lock, Sparkles, Edit2 } from "lucide-react";
@@ -325,7 +326,7 @@ export default function TeacherDashboard() {
                   }
                }
            }
-           alert("Đã thêm thẻ vào bộ thẻ có sẵn thành công!");
+           toast("Đã thêm thẻ vào bộ thẻ có sẵn thành công!");
         } else {
            throw new Error("Không tìm thấy dữ liệu bộ bài gốc trên Cloud");
         }
@@ -338,7 +339,7 @@ export default function TeacherDashboard() {
           cards: generatedCards
         };
         await store.addDeck(newDeckObj);
-        alert("Đã lưu giáo án thành bộ thẻ thành công!");
+        toast("Đã lưu giáo án thành bộ thẻ thành công!");
       }
       
       setLessonPlanData(null);
@@ -349,7 +350,7 @@ export default function TeacherDashboard() {
       setSelectedExistingDeckId("");
     } catch (err) {
       console.error(err);
-      alert("Lỗi khi lưu bộ thẻ!");
+      toast("Lỗi khi lưu bộ thẻ!");
     } finally {
       isSavingPlanRef.current = false;
       setIsSavingPlan(false);
@@ -629,7 +630,7 @@ export default function TeacherDashboard() {
       setEditingCategory(null);
     } catch (err: any) {
       console.error("Lỗi khi đổi tên category:", err);
-      alert("Có lỗi xảy ra khi đổi tên: " + err.message);
+      toast("Có lỗi xảy ra khi đổi tên: " + err.message);
     } finally {
       setIsSavingCategoryName(false);
     }
@@ -638,7 +639,7 @@ export default function TeacherDashboard() {
   const handleMoveDecksBulk = async () => {
     const destination = targetMoveCategory.trim();
     if (!destination) {
-      alert("Vui lòng chọn hoặc điền tên chuyên mục đích.");
+      toast("Vui lòng chọn hoặc điền tên chuyên mục đích.");
       return;
     }
     setIsMovingBulk(true);
@@ -682,7 +683,7 @@ export default function TeacherDashboard() {
       setRenameStartIndex(1);
     } catch (err: any) {
       console.error("Lỗi khi di dời loạt thẻ:", err);
-      alert("Gặp lỗi khi di dời: " + err.message);
+      toast("Gặp lỗi khi di dời: " + err.message);
     } finally {
       setIsMovingBulk(false);
     }
@@ -1337,7 +1338,7 @@ export default function TeacherDashboard() {
                         type="button"
                         onClick={() => {
                           navigator.clipboard.writeText(generatedMarkdown);
-                          alert("Đã sao chép cấu trúc Markdown lồng nhau của toàn bộ Thư viện!");
+                          toast("Đã sao chép cấu trúc Markdown lồng nhau của toàn bộ Thư viện!");
                         }}
                         className="px-2.5 py-1.5 bg-orange-500 text-black rounded-lg text-[10px] font-black uppercase transition hover:bg-orange-600 flex items-center gap-1 border-none cursor-pointer"
                       >
@@ -1865,7 +1866,7 @@ export default function TeacherDashboard() {
                     setShowBulkConfirmDeleteStudents(null);
                   } catch (e: any) {
                     console.error("Error bulk deleting students:", e);
-                    alert("Có lỗi xảy ra khi thao tác hàng loạt trên học sinh: " + e.message);
+                    toast("Có lỗi xảy ra khi thao tác hàng loạt trên học sinh: " + e.message);
                   } finally {
                     setIsBulkDeletingStudents(false);
                   }

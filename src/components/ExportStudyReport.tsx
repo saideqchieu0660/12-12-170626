@@ -108,13 +108,18 @@ export const ExportStudyReport: React.FC<ExportStudyReportProps> = ({
     return md;
   };
 
-  const handleCopyText = () => {
+  const handleCopyText = async () => {
+    // Prevent blocking main thread by deferring
+    await new Promise(resolve => setTimeout(resolve, 0));
     navigator.clipboard.writeText(getMarkdownContent());
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
+    // Prevent blocking main thread by deferring the heavy DOM mapping
+    await new Promise(resolve => setTimeout(resolve, 10));
+
     const printFrame = document.createElement("iframe");
     printFrame.style.position = "fixed";
     printFrame.style.right = "0";

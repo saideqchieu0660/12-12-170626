@@ -54,15 +54,15 @@ export default function Agent3Widget() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId] = useState(() => uuidv4());
-  const [responseMode, setResponseMode] = useState<"socratic" | "direct" | "debate">(() => {
-    return (localStorage.getItem("agent3_response_mode") as "socratic" | "direct" | "debate") || "socratic";
+  const [responseMode, setResponseMode] = useState<"socratic" | "direct" | "debate" | "auto">(() => {
+    return (localStorage.getItem("agent3_response_mode") as "socratic" | "direct" | "debate" | "auto") || "auto";
   });
   const [responseLength, setResponseLength] = useState<"concise" | "detailed" | "super_detailed">(() => {
     return (localStorage.getItem("agent3_response_length") as "concise" | "detailed" | "super_detailed") || "detailed";
   });
   const [showSettings, setShowSettings] = useState(false);
 
-  const handleToggleResponseMode = (mode: "socratic" | "direct" | "debate") => {
+  const handleToggleResponseMode = (mode: "socratic" | "direct" | "debate" | "auto") => {
     setResponseMode(mode);
     localStorage.setItem("agent3_response_mode", mode);
     
@@ -70,6 +70,7 @@ export default function Agent3Widget() {
     let noticeText = "";
     if (mode === "direct") noticeText = "⚡ *Hệ thống: Đã chuyển sang chế độ Trực Diện.* Từ giờ tôi sẽ trả lời trực tiếp vấn đề trần trụi với sự tôn trọng, cấm tiệt phương pháp Socrates vòng vo!";
     else if (mode === "debate") noticeText = "⚔️ *Hệ thống: Đã chuyển sang chế độ Tranh Biện.* Tôi sẽ đóng vai kẻ phản biện (Devil's Advocate) gắt gao nhất, sẵn sàng vạch trần mọi sơ hở tư duy của ngài!";
+    else if (mode === "auto") noticeText = "🧠 *Hệ thống: Đã bật Tier 1 Routing (Tự Động).* Tôi sẽ siêu phân tích yêu cầu của ngài và tự quyết định xem nên Gợi mở, Trực diện hay Tranh biện!";
     else noticeText = "🤔 *Hệ thống: Đã chuyển sang chế độ Gợi Mở.* Tôi sẽ sử dụng phương pháp triết học để ép ngài phải tự động não suy nghĩ!";
     setMessages(prev => [...prev, { role: "ai", text: noticeText }]);
   };
@@ -550,6 +551,18 @@ export default function Agent3Widget() {
               Chế độ trả lời:
             </span>
             <div className="flex bg-zinc-200/60 dark:bg-zinc-800/80 p-0.5 rounded-lg border border-zinc-300/30">
+              <button
+                onClick={() => handleToggleResponseMode("auto")}
+                className={cn(
+                  "px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer",
+                  responseMode === "auto"
+                    ? "bg-purple-500 text-white shadow-xs"
+                    : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                )}
+                title="Tự động (Auto) - Tier 1 Router sẽ phân tích ngữ cảnh"
+              >
+                Auto 🧠
+              </button>
               <button
                 onClick={() => handleToggleResponseMode("socratic")}
                 className={cn(

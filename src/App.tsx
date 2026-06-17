@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import React, { useState, useEffect, lazy, Suspense } from "react";
 import { Link, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { Moon, Sun, LogOut, MessageCircle, Flame, Volume2, VolumeX, Home, BookOpen, Shield, User as UserIcon, Settings, X, ChevronRight, Cpu, RefreshCw, Check, Maximize, Minimize, Sparkles, Key } from "lucide-react";
@@ -7,6 +8,7 @@ import { SoundProvider, useSoundContext } from "./components/SoundProvider";
 import { MarcusAureliusIcon } from "./components/MarcusAureliusIcon";
 import { StreakDisplay } from "./components/StreakDisplay";
 import { Breadcrumbs } from "./components/Breadcrumbs";
+import { syncAIPrompts } from "./utils/apiClient";
 
 const StudentDashboard = lazy(() => import("./pages/StudentDashboard"));
 const TeacherDashboard = lazy(() => import("./pages/TeacherDashboard"));
@@ -183,6 +185,10 @@ function Layout({ children }: { children: React.ReactNode }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
+    syncAIPrompts();
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Guard against triggering while typing in input elements
       const activeEl = document.activeElement;
@@ -316,7 +322,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       window.dispatchEvent(new CustomEvent("henosis_notifications_changed", { detail: { enabled: false } }));
     } else {
       if (!("Notification" in window)) {
-        alert("Trình duyệt của ngài không hỗ trợ Browser Notifications API rồi!");
+        toast("Trình duyệt của ngài không hỗ trợ Browser Notifications API rồi!");
         return;
       }
       const permission = await Notification.requestPermission();
@@ -332,7 +338,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           console.error(e);
         }
       } else {
-        alert("Ngài cần cấp quyền thông báo đẩy trên trình duyệt thì hệ thống mới nhắc học bài được nha!");
+        toast("Ngài cần cấp quyền thông báo đẩy trên trình duyệt thì hệ thống mới nhắc học bài được nha!");
       }
     }
   };

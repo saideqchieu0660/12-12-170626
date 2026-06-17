@@ -264,15 +264,40 @@ export default function StudyRoom() {
       isDeckSavedOffline(deckId).then(setIsOfflineSaved);
       
       if (!navigator.onLine) {
-        getOfflineDeck(deckId).then((offlineDeck) => {
-          if (offlineDeck) {
-            console.log("Loaded offline deck from DB:", offlineDeck);
-            setRawDeck(offlineDeck);
-            store.setTempDeck(offlineDeck);
-            setIsOfflineSaved(true);
-          }
-          setIsLoading(false);
-        });
+        if (deckId === "daily-quest") {
+          import("localforage").then((localforage) => {
+            localforage.default.getItem("cached_roadmap").then((cachedRoadmap) => {
+              if (cachedRoadmap && Array.isArray(cachedRoadmap)) {
+                toast("Mạng ngoại tuyến, hiển thị lộ trình tuyến Offline PWA.");
+                const dailyDeck = {
+                  id: "daily-quest",
+                  title: "Nhiệm vụ hôm nay (Daily Quest)",
+                  subject: "Spaced Repetition",
+                  description: "Được tự động tạo bởi SM-2 bằng Thuật toán phân cực.",
+                  cards: cachedRoadmap,
+                  createdAt: new Date().toISOString(),
+                  ownerId: "system",
+                };
+                setRawDeck(dailyDeck);
+                store.setTempDeck(dailyDeck);
+              } else {
+                toast("Không có lộ trình ngoại tuyến nào khả dụng.");
+                navigate(user?.role === 'teacher' ? '/teacher-dashboard' : '/student-dashboard');
+              }
+              setIsLoading(false);
+            });
+          });
+        } else {
+          getOfflineDeck(deckId).then((offlineDeck) => {
+            if (offlineDeck) {
+              console.log("Loaded offline deck from DB:", offlineDeck);
+              setRawDeck(offlineDeck);
+              store.setTempDeck(offlineDeck);
+              setIsOfflineSaved(true);
+            }
+            setIsLoading(false);
+          });
+        }
       }
     });
 
@@ -320,6 +345,8 @@ export default function StudyRoom() {
               }
             });
 
+            const homePath = user?.role === 'teacher' ? '/teacher-dashboard' : '/student-dashboard';
+
             if (allCards.length === 0) {
               navigate(homePath);
               return;
@@ -336,6 +363,10 @@ export default function StudyRoom() {
               navigate(homePath);
               return;
             }
+            
+            // CACHE ROADMAP
+            const localforage = (await import("localforage")).default;
+            await localforage.setItem("cached_roadmap", reqData.cards).catch(console.warn);
 
             const dailyDeck = {
               id: "daily-quest",
@@ -353,11 +384,36 @@ export default function StudyRoom() {
             setIsLoading(false);
           } catch (e) {
             console.error("Auto daily quest generation failed:", e);
+            const homePath = user?.role === 'teacher' ? '/teacher-dashboard' : '/student-dashboard';
+            
+            // Fallback on Catch: If network failed unexpectedly during fetch
+            try {
+              const localforage = (await import("localforage")).default;
+              const cachedRoadmap = await localforage.getItem("cached_roadmap");
+              if (cachedRoadmap && Array.isArray(cachedRoadmap)) {
+                  toast("Mạng không ổn định. Kích hoạt dự phòng lộ trình Offline.");
+                  const dailyDeck = {
+                     id: "daily-quest",
+                     title: "Nhiệm vụ hôm nay (Daily Quest)",
+                     subject: "Spaced Repetition",
+                     description: "Được tự động tạo bởi SM-2 bằng Thuật toán phân cực.",
+                     cards: cachedRoadmap,
+                     createdAt: new Date().toISOString(),
+                     ownerId: "system"
+                  };
+                  store.setTempDeck(dailyDeck);
+                  setRawDeck(dailyDeck);
+                  setIsLoading(false);
+                  return;
+              }
+            } catch (fallbackErr) {}
+            
             navigate(homePath);
           }
         };
         buildDailyQuest();
       } else if (deckId === "remind-later-deck") {
+        const homePath = user?.role === 'teacher' ? '/teacher-dashboard' : '/student-dashboard';
         navigate(homePath);
       }
       return;
@@ -1031,7 +1087,7 @@ export default function StudyRoom() {
     );
 
     if (weakCards.length === 0) {
-      alert("Tuyệt vời! Bạn không còn thẻ nào bị đánh dấu X trong bộ này.");
+      toast("Tuyệt vời! Bạn không còn thẻ nào bị đánh dấu X trong bộ này.");
       return;
     }
 
@@ -2470,7 +2526,7 @@ export default function StudyRoom() {
               <button
                 onClick={() => {
                    navigator.clipboard.writeText(window.location.href);
-                   alert("Đã copy link! Gửi cho bạn bè để cùng học set này nhé.");
+                   toast("Đã copy link! Gửi cho bạn bè để cùng học set này nhé.");
                 }}
                 className="flex items-center gap-1.5 p-2 px-3 bg-zinc-200/60 dark:bg-zinc-800/50 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition text-xs font-bold"
                 title="Chia sẻ link"

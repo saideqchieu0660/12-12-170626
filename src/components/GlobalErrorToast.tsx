@@ -10,8 +10,11 @@ interface ApiError {
   timestamp?: string;
 }
 
+import { useSystemConfig } from "../hooks/useSystemConfig";
+
 export function GlobalErrorToast() {
   const [errors, setErrors] = useState<ApiError[]>([]);
+  const { config } = useSystemConfig();
 
   useEffect(() => {
     const addError = (newErrorParams: Omit<ApiError, "id" | "timestamp">) => {
@@ -109,7 +112,7 @@ export function GlobalErrorToast() {
     setErrors((prev) => prev.filter((e) => e.id !== id));
   };
 
-  const handleReportError = async (error: ApiError) => {
+  const handleReportError = async (error: ApiError, method: 'telegram' | 'gmail') => {
     try {
       const logData = `[CRASH REPORT]
 Message: ${error.message}
@@ -146,11 +149,19 @@ URL: ${window.location.href}`;
         }
       }
 
-      // Safe redirection
-      const telegramLink = "https://t.me/+O50q6ltXTzwxMzk1";
-      const newWin = window.open(telegramLink, "_blank");
-      if (!newWin || newWin.closed || typeof newWin.closed === "undefined") {
-        window.location.href = telegramLink;
+      if (method === 'telegram') {
+        const telegramLink = "https://t.me/+O50q6ltXTzwxMzk1";
+        const newWin = window.open(telegramLink, "_blank");
+        if (!newWin || newWin.closed || typeof newWin.closed === "undefined") {
+          window.location.href = telegramLink;
+        }
+      } else {
+        const targetEmail = config?.supportEmail || 'lgbtbd12@gmail.com';
+        const gmailLink = `https://mail.google.com/mail/?view=cm&fs=1&to=${targetEmail}&su=Bug+Report&body=${encodeURIComponent(logData)}`;
+        const newWin = window.open(gmailLink, "_blank");
+        if (!newWin || newWin.closed || typeof newWin.closed === "undefined") {
+          window.location.href = gmailLink;
+        }
       }
       
       removeError(error.id);
@@ -192,13 +203,20 @@ URL: ${window.location.href}`;
                   </p>
                 )}
                 
-                <div className="mt-3">
+                <div className="mt-3 flex gap-2 w-full">
                   <button
-                    onClick={() => handleReportError(error)}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-bold transition shadow-sm active:scale-95"
+                    onClick={() => handleReportError(error, 'telegram')}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-[#0088cc] hover:bg-[#0077b3] text-white rounded-lg text-xs font-bold transition shadow-sm active:scale-95"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    Báo cáo lỗi (Telegram)
+                    Telegram
+                  </button>
+                  <button
+                    onClick={() => handleReportError(error, 'gmail')}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-[#EA4335] hover:bg-[#D33828] text-white rounded-lg text-xs font-bold transition shadow-sm active:scale-95"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    Gmail
                   </button>
                 </div>
               </div>

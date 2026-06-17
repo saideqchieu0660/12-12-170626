@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import React, { useState, useEffect, useRef, useCallback , useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -128,7 +129,7 @@ export default function AdminCreateCards() {
 
   const handleGenerateBack = async () => {
     if (!front.trim()) {
-      alert("Vui lòng nhập Mặt trước (Từ / Khái niệm) trước khi phân tích AI!");
+      toast("Vui lòng nhập Mặt trước (Từ / Khái niệm) trước khi phân tích AI!");
       frontInputRef.current?.focus();
       return;
     }
@@ -149,7 +150,7 @@ export default function AdminCreateCards() {
         throw new Error(data.error || data.message || "Lỗi cập nhật AI");
       }
     } catch (err: any) {
-      alert("Lỗi khi gọi AI phân tích: " + (err.message || ""));
+      toast("Lỗi khi gọi AI phân tích: " + (err.message || ""));
     } finally {
       setIsGeneratingAI(false);
     }
@@ -275,7 +276,7 @@ export default function AdminCreateCards() {
 
     // Validate New Deck if selected
     if (selectedDeckId === "new" && !newDeckTitle.trim()) {
-      alert("Vui lòng nhập tên Bộ bài mới!");
+      toast("Vui lòng nhập tên Bộ bài mới!");
       return;
     }
 
@@ -370,11 +371,11 @@ export default function AdminCreateCards() {
         err.message,
       );
       if (err && typeof err === "object" && err.message) {
-        alert(
+        toast(
           `Có lỗi xảy ra khi lưu thẻ: ${err.code} - ${err.message}. Vui lòng thử lại!`,
         );
       } else {
-        alert(
+        toast(
           `Có lỗi xảy ra khi lưu thẻ: ${JSON.stringify(err)}. Vui lòng thử lại!`,
         );
       }

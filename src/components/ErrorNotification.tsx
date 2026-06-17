@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, RefreshCw, Lock, Server, Send, Clock } from 'lucide-react';
+import { useSystemConfig } from '../hooks/useSystemConfig';
 
 interface ErrorNotificationProps {
   message: string;
@@ -8,6 +9,7 @@ interface ErrorNotificationProps {
 
 export default function ErrorNotification({ message, onRetry }: ErrorNotificationProps) {
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const { config } = useSystemConfig();
   let icon = <AlertCircle className="w-5 h-5" />;
   let title = "Đã có lỗi xảy ra";
 
@@ -22,7 +24,7 @@ export default function ErrorNotification({ message, onRetry }: ErrorNotificatio
     title = "Lỗi từ mô hình AI";
   }
 
-  const handleReportError = async () => {
+  const handleReportError = async (method: 'telegram' | 'gmail') => {
     try {
       setIsRedirecting(true);
       const logData = `[LOCAL ERROR REPORT]
@@ -59,10 +61,19 @@ URL: ${window.location.href}`;
         }
       }
 
-      const telegramLink = "https://t.me/+O50q6ltXTzwxMzk1";
-      const newWin = window.open(telegramLink, "_blank");
-      if (!newWin || newWin.closed || typeof newWin.closed === "undefined") {
-        window.location.href = telegramLink;
+      if (method === 'telegram') {
+        const telegramLink = "https://t.me/+O50q6ltXTzwxMzk1";
+        const newWin = window.open(telegramLink, "_blank");
+        if (!newWin || newWin.closed || typeof newWin.closed === "undefined") {
+          window.location.href = telegramLink;
+        }
+      } else {
+        const targetEmail = config?.supportEmail || 'lgbtbd12@gmail.com';
+        const gmailLink = `https://mail.google.com/mail/?view=cm&fs=1&to=${targetEmail}&su=Bug+Report&body=${encodeURIComponent(logData)}`;
+        const newWin = window.open(gmailLink, "_blank");
+        if (!newWin || newWin.closed || typeof newWin.closed === "undefined") {
+          window.location.href = gmailLink;
+        }
       }
 
       setTimeout(() => {
@@ -91,12 +102,20 @@ URL: ${window.location.href}`;
         </button>
 
         <button 
-          onClick={handleReportError}
+          onClick={() => handleReportError('telegram')}
           disabled={isRedirecting}
-          className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:from-orange-600 hover:to-orange-700 transition shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95"
+          className="flex items-center gap-2 bg-[#0088cc] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-[#0077b3] transition shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95"
         >
           <Send className="w-3.5 h-3.5" />
-          {isRedirecting ? "Đã copy! Mở Telegram..." : "Báo Lỗi qua Telegram"}
+          {isRedirecting ? "Đã copy!" : "Telegram"}
+        </button>
+        <button 
+          onClick={() => handleReportError('gmail')}
+          disabled={isRedirecting}
+          className="flex items-center gap-2 bg-[#EA4335] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-[#D33828] transition shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95"
+        >
+          <Send className="w-3.5 h-3.5" />
+          {isRedirecting ? "Đã copy!" : "Gmail"}
         </button>
       </div>
     </div>

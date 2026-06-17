@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Bot, Save, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { getAuth } from "firebase/auth";
+import { syncAIPrompts } from '../utils/apiClient';
 
 export function AIPromptsEditorWidget() {
   const [prompts, setPrompts] = useState<any>({});
@@ -13,7 +14,7 @@ export function AIPromptsEditorWidget() {
   const fetchPrompts = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/ai-prompts");
+      const res = await fetch(`/api/admin/ai-prompts?t=${Date.now()}`);
       const data = await res.json();
       if (data && data.success) {
         setPrompts(data.data || {});
@@ -55,6 +56,7 @@ export function AIPromptsEditorWidget() {
       const data = await res.json();
       if (data.success) {
         setSuccess("Lưu System Prompts thành công! Server đã cập nhật đồng bộ.");
+        syncAIPrompts();
         setTimeout(() => setSuccess(null), 3000);
       } else {
         throw new Error(data.error || "Save failed");
@@ -179,6 +181,165 @@ export function AIPromptsEditorWidget() {
               placeholder="Mày là Agent 3 - Socrates AI Coach..."
               value={prompts.agent3_socrates || `Mày là Agent 3 - Socrates AI Coach.\nQUY TẮC CỐT LÕI:\n1. XƯNG HÔ "MÀY/TAO": Bắt buộc xưng "tao" và gọi người dùng là "mày". Cấm dùng "bạn", "tôi", "mình".\n{socraticRule}\n3. CẤM BẮT CHƯỚC ĐỘ DÀI LỊCH SỬ NẾU HIỆN TẠI YÊU CẦU ĐỘ DÀI KHÁC. Phải tuân theo yêu cầu hiện tại.\n4. FORMAT: Dùng LaTeX.{englishRule}\n{styleGuidance}`}
               onChange={(e) => handleChange('agent3_socrates', e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* United Engine configs */}
+        <div className="space-y-4 pt-6 border-t border-white/10">
+          <h3 className="text-red-400 font-semibold px-2 border-l-2 border-red-400">United Engine (Data Compiler)</h3>
+          
+          <div className="bg-slate-900/50 rounded-lg p-4 border border-white/5 relative group">
+            <label className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2 block">Document Chunk Ingestion (Normal Mode)</label>
+            <p className="text-[10px] text-white/40 mb-2">Biến nội suy: {`{targetMin}`}, {`{targetMax}`} và {`{textChunk}`}</p>
+            <textarea
+              className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-sm text-pink-100 font-mono h-40 focus:outline-none focus:border-red-500 transition-colors"
+              placeholder="You are an elite English-Vietnamese lexicographer..."
+              value={prompts.united_process_chunk_normal || `You are an elite English-Vietnamese lexicographer and academic vocabulary trainer. Your goal is to identify and extract prominent vocabulary words, academic terms, useful collocations, or idiomatic expressions from this source text into highly educational flashcards.
+ 
+Each flashcard object MUST have:
+- front: English word/phrase.
+- ipa: Accurate IPA pronunciation.
+- wordForm: noun|verb|adjective|adverb|phrasal verb|idiom.
+- back: Concise Vietnamese translation.
+- example: Illustrative English sentence with its Vietnamese translation in parentheses immediately following.
+- origin: The matching raw word, phrase or context from the original text chunk.
+ 
+STRICT CARD COUNT COHERENCE & LIMITS:
+- You MUST extract between {targetMin} and {targetMax} highly valuable vocabulary terms or phrases from the provided source text.
+- Do NOT generate fewer than {targetMin} or more than {targetMax} cards under any circumstances to keep output sizes deterministic and protect API bandwidth.
+ 
+SMART VOCABULARY YIELD & ACADEMIC BALANCE:
+1. RELAXED ACADEMIC FILTERING: Focus on selecting prominent nouns, verbs, adjectives, and adverbs that have educational or lexical value from the source text. Look for ANY core vocabulary words, useful academic collocations, or idiomatic expressions that would be beneficial for a student to study.
+2. MINIMUM YIELD GUARDRAIL: Analyze the provided text packet thoroughly. If the text contains readable English sentences or word lists, you MUST extract at least {targetMin} useful vocabulary terms from it. Do not return an empty array [] unless the input string is completely devoid of English words.
+3. CRITICAL LINGUISTIC HYGIENE: While we want high selection yield, you are strictly FORBIDDEN from extracting pure machine or layout strings, such as standalone bracket tokens, single-character noise, or raw PDF/programming syntax markers (like "obj", "endobj", "stream", "endstream", "xref", "trailer", "startxref").
+4. STRICT CONTEXTUAL VERIFICATION: Avoid technical parameters, variable namespace tokens, or system property names being used as coding variables in the source text. Focus on genuine words used in human communication.
+ 
+Rule Checklist:
+1. Return ONLY a valid minified JSON array [].
+2. No markdown wrapper.
+3. Maintain maximum yield of legitimate advanced and useful vocabularies.
+ 
+Original Source Text:
+{textChunk}`}
+              onChange={(e) => handleChange('united_process_chunk_normal', e.target.value)}
+            />
+          </div>
+
+          <div className="bg-slate-900/50 rounded-lg p-4 border border-white/5 relative group">
+            <label className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2 block">Document Chunk Ingestion (Degraded Mode)</label>
+            <p className="text-[10px] text-white/40 mb-2">Biến nội suy: {`{targetMin}`}, {`{targetMax}`} và {`{textChunk}`}</p>
+            <textarea
+              className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-sm text-pink-100 font-mono h-40 focus:outline-none focus:border-red-500 transition-colors"
+              placeholder="You are an elite English-Vietnamese lexicographer..."
+              value={prompts.united_process_chunk_degraded || `You are an elite English-Vietnamese lexicographer and academic vocabulary trainer. Your goal is to identify and extract prominent vocabulary words, academic terms, useful collocations, or idiomatic expressions from this source text into highly educational flashcards.
+ 
+Each flashcard object MUST have ONLY these critical fields:
+- front: English word/phrase.
+- ipa: Accurate IPA pronunciation.
+- wordForm: noun|verb|adjective|adverb|phrasal verb|idiom.
+- back: Concise Vietnamese translation.
+ 
+(IMPORTANT: Drop the heavy fields like 'example' and 'origin' entirely to prevent computation timeout. Do not include 'example' or 'origin' in the JSON return structure. Return ONLY fields: front, ipa, wordForm, back).
+ 
+STRICT CARD COUNT COHERENCE & LIMITS:
+- You MUST extract between {targetMin} and {targetMax} highly valuable vocabulary terms or phrases from the provided source text.
+- Do NOT generate fewer than {targetMin} or more than {targetMax} cards under any circumstances to keep output sizes deterministic and protect API bandwidth.
+ 
+SMART VOCABULARY YIELD & ACADEMIC BALANCE:
+1. RELAXED ACADEMIC FILTERING: Focus on selecting prominent nouns, verbs, adjectives, and adverbs that have educational or lexical value from the source text. Look for ANY core vocabulary words, useful academic collocations, or idiomatic expressions that would be beneficial for a student to study.
+2. MINIMUM YIELD GUARDRAIL: Analyze the provided text packet thoroughly. If the text contains readable English sentences or word lists, you MUST extract at least {targetMin} useful vocabulary terms from it. Do not return an empty array [] unless the input string is completely devoid of English words.
+3. CRITICAL LINGUISTIC HYGIENE: While we want high selection yield, you are strictly FORBIDDEN from extracting pure machine or layout strings, such as standalone bracket tokens, single-character noise, or raw PDF/programming syntax markers (like "obj", "endobj", "stream", "endstream", "xref", "trailer", "startxref").
+4. STRICT CONTEXTUAL VERIFICATION: Avoid technical parameters, variable namespace tokens, or system property names being used as coding variables in the source text. Focus on genuine words used in human communication.
+ 
+Rule Checklist:
+1. Return ONLY a valid minified JSON array [].
+2. No markdown wrapper.
+3. Maintain maximum yield of legitimate advanced and useful vocabularies.
+ 
+Original Source Text:
+{textChunk}`}
+              onChange={(e) => handleChange('united_process_chunk_degraded', e.target.value)}
+            />
+          </div>
+
+          <div className="bg-slate-900/50 rounded-lg p-4 border border-white/5 relative group">
+            <label className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2 block">Extract Valid Words from Raw Text Chunk (fallback)</label>
+            <p className="text-[10px] text-white/40 mb-2">Biến nội suy: {`{chunkWords}`}</p>
+            <textarea
+              className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-sm text-pink-100 font-mono h-40 focus:outline-none focus:border-red-500 transition-colors"
+              placeholder="[STRICT DETERMINISTIC MODE] Bạn là một cỗ máy biên dịch..."
+              value={prompts.united_convert_document_chunk || `[STRICT DETERMINISTIC MODE] Bạn là một cỗ máy biên dịch dữ liệu (Data Compiler).
+Hãy trích xuất và tối ưu hoá Flashcard từ cụm dữ liệu thô dưới đây. Cụm dữ liệu này có thể chứa từ vựng tiếng Anh, định nghĩa, ví dụ, hoặc một số rác (headers/footers/số trang). Hãy nhặt ra các từ vựng tiếng Anh thực sự và tạo bộ Flashcards. Bỏ qua các rác không phải từ vựng.
+ 
+BẮT BUỘC ĐỊNH DẠNG JSON MẢNG TƯƠNG THÍCH HOÀN TOÀN NHƯ SAU:
+[
+  {
+    "front": "Từ khóa / Cụm từ tiếng Anh",
+    "wordForm": "danh từ / động từ / tính từ / trạng từ / idiom / collocation",
+    "back": "Phiên âm IPA - Nghĩa tiếng Việt ngắn gọn - Ví dụ cụ thể (nếu có)"
+  }
+]
+- Tách riêng Từ loại (Word Form) CHÍNH XÁC.
+- TRẢ VỀ ĐÚNG MỘT MẢNG JSON, KHÔNG CÓ MARKDOWN CODE BLOCK (\`\`\`json). KHÔNG GIẢI THÍCH GÌ THÊM.
+- Trả về CHÍNH XÁC CÁC TỪ VỰNG HOẶC FLASHCARDS CÓ Ý NGHĨA. Nếu không có từ nào hợp lý, trả về mảng rỗng [].
+ 
+CỤM DỮ LIỆU THÔ CẦN XỬ LÝ:
+{chunkWords}`}
+              onChange={(e) => handleChange('united_convert_document_chunk', e.target.value)}
+            />
+          </div>
+
+          <div className="bg-slate-900/50 rounded-lg p-4 border border-white/5 relative group">
+            <label className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2 block">Card Hydration (Tìm ví dụ/ngữ cảnh)</label>
+            <p className="text-[10px] text-white/40 mb-2">Biến nội suy: {`{front}`}, {`{wordForm}`} và {`{back}`}</p>
+            <textarea
+              className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-sm text-pink-100 font-mono h-40 focus:outline-none focus:border-red-500 transition-colors"
+              placeholder="You are an expert English-Vietnamese lexicographer..."
+              value={prompts.united_hydrate_card || `You are an expert English-Vietnamese lexicographer. Provide a high-quality illustrative example sentence for this English word/phrase.
+          
+Word: {front}
+Part of Speech: {wordForm}
+Meaning: {back}
+ 
+Return ONLY a minified JSON object with these EXACT keys:
+{
+  "example": "Illustrative English sentence with its Vietnamese translation in parentheses immediately following.",
+  "origin": "An appropriate context snippet matching the word."
+}
+ 
+Do not include any markdown wrapper or extra text.`}
+              onChange={(e) => handleChange('united_hydrate_card', e.target.value)}
+            />
+          </div>
+
+          <div className="bg-slate-900/50 rounded-lg p-4 border border-white/5 relative group">
+            <label className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2 block">JSON Validator & Repairer</label>
+            <p className="text-[10px] text-white/40 mb-2">Biến nội suy: {`{jsonText}`}</p>
+            <textarea
+              className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-sm text-pink-100 font-mono h-40 focus:outline-none focus:border-red-500 transition-colors"
+              placeholder="Bạn là một AI chuyên gia kiểm duyệt..."
+              value={prompts.united_validate_json || `Bạn là một AI chuyên gia kiểm duyệt, làm sạch và sửa lỗi cú pháp dữ liệu cấu trúc (JSON Validator & Repairer).
+Nhiệm vụ của bạn là nhận vào một chuỗi văn bản (gồm JSON chuẩn, hoặc JSON bị thiếu ngoặc, thừa dấu phẩy, bị bọc trong markdown) và sửa lỗi cú pháp, sau đó chuẩn hóa thành một mảng JSON Array chính xác:
+ 
+[
+  {
+    "front": "Từ khóa / thuật ngữ / câu hỏi tiếng Anh",
+    "wordForm": "từ loại (noun/verb/adj/adv...) nếu có, nếu không thì ghi rỗng",
+    "ipa": "phiên âm IPA nếu có",
+    "back": "Nghĩa tiếng Việt ngắn gọn, súc tích",
+    "example": "ví dụ thực tế nếu có"
+  }
+]
+ 
+Yêu cầu cực kỳ nghiêm ngặt:
+- Trả về CHỈ mảng JSON Array sạch (bắt đầu bằng [ và kết thúc bằng ]).
+- TUYỆT ĐỐI không bọc trong markdown \`\`\`json ... \`\`\`.
+- KHÔNG có bất kỳ lời giải thích dông dài nào. Nếu không hợp lệ, trả về mảng rỗng [].
+ 
+Dữ liệu đầu vào cần sửa lỗi:
+{jsonText}`}
+              onChange={(e) => handleChange('united_validate_json', e.target.value)}
             />
           </div>
         </div>

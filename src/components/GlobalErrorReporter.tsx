@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Bug, X, Send } from 'lucide-react';
 import { cn } from '../lib/utils';
 
+import { useSystemConfig } from "../hooks/useSystemConfig";
+
 export function GlobalErrorReporter() {
   const [errorLog, setErrorLog] = useState<{message: string; stack?: string; time: string; url: string} | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const { config } = useSystemConfig();
 
   useEffect(() => {
     const handleGlobalApiError = (event: Event) => {
@@ -58,7 +61,7 @@ export function GlobalErrorReporter() {
     };
   }, []);
 
-  const handleReport = async () => {
+  const handleReport = async (method: 'telegram' | 'gmail') => {
     if (!errorLog) return;
     setIsRedirecting(true);
 
@@ -95,10 +98,19 @@ User Agent: ${navigator.userAgent}`;
       }
     }
 
-    const telegramLink = "https://t.me/+O50q6ltXTzwxMzk1";
-    const newWin = window.open(telegramLink, "_blank");
-    if (!newWin || newWin.closed || typeof newWin.closed === "undefined") {
-      window.location.href = telegramLink;
+    if (method === 'telegram') {
+      const telegramLink = "https://t.me/+O50q6ltXTzwxMzk1";
+      const newWin = window.open(telegramLink, "_blank");
+      if (!newWin || newWin.closed || typeof newWin.closed === "undefined") {
+        window.location.href = telegramLink;
+      }
+    } else {
+      const targetEmail = config?.supportEmail || 'lgbtbd12@gmail.com';
+      const gmailLink = `https://mail.google.com/mail/?view=cm&fs=1&to=${targetEmail}&su=Bug+Report&body=${encodeURIComponent(logData)}`;
+      const newWin = window.open(gmailLink, "_blank");
+      if (!newWin || newWin.closed || typeof newWin.closed === "undefined") {
+        window.location.href = gmailLink;
+      }
     }
 
     setTimeout(() => {
@@ -129,19 +141,30 @@ User Agent: ${navigator.userAgent}`;
         </button>
       </div>
       
-      <button
-        onClick={handleReport}
-        disabled={isRedirecting}
-        className={cn(
-           "mt-3 w-full py-2.5 px-4 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all",
-           isRedirecting 
-             ? "bg-green-500 text-white" 
-             : "bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-red-50 dark:hover:bg-red-500/20 hover:text-red-600 dark:hover:text-red-400"
-        )}
-      >
-        <Send className={cn("w-4 h-4", isRedirecting && "animate-pulse")} />
-        {isRedirecting ? "Đã chép mã lỗi, đang chuyển hướng..." : "Báo cáo qua Telegram"}
-      </button>
+      <div className="flex gap-2 mt-3 w-full">
+        <button
+          onClick={() => handleReport('telegram')}
+          disabled={isRedirecting}
+          className={cn(
+            "flex-1 py-2.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all text-white",
+            isRedirecting ? "bg-green-500" : "bg-[#0088cc] hover:bg-[#0077b3] active:scale-95 shadow-sm"
+          )}
+        >
+          <Send className={cn("w-3.5 h-3.5", isRedirecting && "animate-pulse")} />
+          Telegram
+        </button>
+        <button
+          onClick={() => handleReport('gmail')}
+          disabled={isRedirecting}
+          className={cn(
+            "flex-1 py-2.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all text-white",
+            isRedirecting ? "bg-green-500" : "bg-[#EA4335] hover:bg-[#D33828] active:scale-95 shadow-sm"
+          )}
+        >
+          <Send className={cn("w-3.5 h-3.5", isRedirecting && "animate-pulse")} />
+          Gmail
+        </button>
+      </div>
     </div>
   );
 }
